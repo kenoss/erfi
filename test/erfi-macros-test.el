@@ -1,0 +1,322 @@
+;;; erfi-macros-test.el ---
+
+;; Copyright (C) 2014  Ken Okada
+
+;; Author: Ken Okada <keno.ss57@gmail.com>
+
+;; Apache License, Version 2.0
+
+;;; Commentary:
+
+;; 
+
+;;; Code:
+
+
+
+(require 'ert)
+(require 'erfi-macros)
+(erfi:use-short-macro-name)
+
+
+
+(defun erfi:undefined ()
+  'undefined)
+
+
+
+(ert-deftest erfi-test:case ()
+  (should (equal 'zero
+                 (erfi:case (car '(0 1 2))
+                   ((0) 'zero)
+                   ((1) 'one)
+                   ((2) 'two))))
+  (should (equal 'one
+                 (erfi:case (cadr '(0 1 2))
+                   ((0) 'zero)
+                   ((1) 'one)
+                   ((2) 'two))))
+  (should (equal 'undefined
+                 (erfi:case 3
+                   ((0) 'zero)
+                   ((1) 'one)
+                   ((2) 'two))))
+  (should (equal 'hoge
+                 (erfi:case 'other
+                   ((0) 'zero)
+                   ((1) 'one)
+                   (else 'hoge))))
+  (should (equal 'hoge
+                 (erfi:case 'other
+                   ((0) 'zero)
+                   ((1) 'one)
+                   (t 'hoge))))
+  (should-error (erfi:case 'other
+                  ((0) 'zero)
+                  (else 'one)
+                  (else 'hoge)))
+  (should-error (erfi:ecase 3
+                  ((0) 'zero)
+                  ((1) 'one)
+                  ((2) 'two)))
+  (should (eq 'composite
+              (erfi:case (* 2 3)
+                ((2 3 5 7) 'prime)
+                ((1 4 6 8 9) 'composite))))
+  (should (eq 'undefined
+              (erfi:case (car '(c d))
+                ((a) 'a)
+                ((b) 'b))))
+  (should (eq 'consonant
+              (erfi:case (car '(c d))
+                ((a e i o u) 'vowel)
+                ((w y) 'semivowel)
+                (else 'consonant))))
+  (should (= 7
+             (erfi:case 6
+               ((2 4 6 8) => (erfi:cut '+ <> 1))
+               (else => (erfi:cut '- <> 1)))))
+  (should (= 4
+             (erfi:case 5
+               ((2 4 6 8) => (erfi:cut '+ <> 1))
+               (else => (erfi:cut '- <> 1)))))
+  )
+
+
+
+(ert-deftest erfi-test:let:auxiliary-function ()
+  (should (equal '((a 1) (b 2) (c 3))
+                 (erfi:zip2 '(a b c) '(1 2 3 4 5))))
+  (should (equal '(5 7 9)
+                 (erfi:map2 '+ '(1 2 3) '(4 5 6 7 8))))
+  (should (equal '((1 2) (3 4 5))
+                 (erfi:split-at '(1 2 3 4 5) 2)))
+  (should (equal '(3 4 5)
+                 (erfi:drop '(1 2 3 4 5) 2)))
+  (should (equal '(1 2)
+                 (erfi:take '(1 2 3 4 5) 2)))
+  (should (equal 5
+                 (erfi:last '(1 2 3 4 5))))
+  (should (eq 1
+              (erfi:any1 'identity '(nil nil nil 1 nil))))
+  (should (eq nil
+              (erfi:any1 'integerp '(nil t nil a))))
+  (should (eq nil
+              (erfi:every1 'integerp '(nil t nil a))))
+  (should (eq t
+              (erfi:every1 'integerp '(1 2 3 4))))
+  )
+
+
+
+(defvar dummy-func-alist
+  `((naive-funcall . ,(lambda (expr) '(REPLACED)))
+    (apply . ,(lambda (expr) '(REPLACED)))))
+
+
+
+(ert-deftest erfi-test:let:code-walk ()
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(f)
+                                         t dummy-func-alist))))
+  (should (eq :not-appear
+              (car (erfi:let:code-walk-1 'f
+                                         '(g)
+                                         t dummy-func-alist))))
+  (should (eq :not-appear
+              (car (erfi:let:code-walk-1 'f
+                                         'a
+                                         t dummy-func-alist))))
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk:aux 'f
+                                           '((g)) '((f) a)
+                                           t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk:aux 'f
+                                           '((g)) '(f a)
+                                           t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk:aux 'f
+                                           '((f)) '((g) a)
+                                           t dummy-func-alist))))
+  )
+(ert-deftest erfi-test:let:code-walk:if ()
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(if a f g)
+                                         t dummy-func-alist))))
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(if a (f) (g))
+                                         t dummy-func-alist))))
+  )
+(ert-deftest erfi-test:let:code-walk:cond ()
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(cond (a a) (t (f)))
+                                         t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(cond (a a) ((f) (f)))
+                                         t dummy-func-alist))))
+  )
+(ert-deftest erfi-test:let:code-walk:and ()
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(and a (f))
+                                         t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(and (f) a)
+                                         t dummy-func-alist))))
+  )
+(ert-deftest erfi-test:let:code-walk:let ()
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(let ((a 1)) a (f))
+                                         t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(let ((a (f))) (f) a)
+                                         t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(let ((a (f))) a)
+                                         t dummy-func-alist))))
+  ;; the followings raise warning... test this!
+  ;; If `let' hide let-name, `erfi:let' regard let-name is used even if it does not appear
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(let ((f 1) (a 2)) a)
+                                         t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(let ((f 1) (a 2)) (f))
+                                         t dummy-func-alist))))
+  )
+(ert-deftest erfi-test:let:code-walk:apply ()
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(if (zerop x) 0 (apply f 0 (cons 0 1)))
+                                         t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(if (zerop x) 0 (apply f (f 0 1) (cons 0 1)))
+                                         t dummy-func-alist))))
+  )
+(ert-deftest erfi-test:let:code-walk:naive-funcall ()
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(f (g 1))
+                                         t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(g (f 1))
+                                         t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(f (f 1))
+                                         t dummy-func-alist))))
+  )
+(ert-deftest erfi-test:let:code-walk:funcall ()
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(funcall f (g 1))
+                                         t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(funcall g (f 1))
+                                         t dummy-func-alist))))
+  (should (eq :not-appear
+              (car (erfi:let:code-walk-1 'f
+                                         '(funcall g 1)
+                                         t dummy-func-alist))))
+  )
+(ert-deftest erfi-test:let:code-walk:apply-2 ()
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(apply f (g 1))
+                                         t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(apply g (f 1))
+                                         t dummy-func-alist))))
+  (should (eq :not-appear
+              (car (erfi:let:code-walk-1 'f
+                                         '(apply 'f 1)
+                                         t dummy-func-alist))))
+  )
+(ert-deftest erfi-test:let:code-walk:complex-example ()
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk 'fact
+                                       '(if (zerop n) 1 (* n (fact (- n 1))))
+                                       t dummy-func-alist))))
+  (should (eq :only-tail-call
+              (car (erfi:let:code-walk 'fact*
+                                       '(if (zerop n) r (fact* (- n 1) (* r n)))
+                                       t dummy-func-alist))))
+  )
+(ert-deftest erfi-test:let:code-walk:lambda ()
+  (should (eq :not-appear
+              (car (erfi:let:code-walk-1 'f '(lambda (x) x) t dummy-func-alist))))
+  ;; the followings raise warning... test this!
+  ;; If `lambda' hide let-name, `erfi:let' regard let-name is used even if it does not appear
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f '(lambda (x f) x) t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f '(lambda (x f) (f)) t dummy-func-alist))))
+  )
+
+
+
+(ert-deftest erfi-test:let:execution ()
+  (should (eq 120
+              (erfi:let fact ((n 5))
+                (if (zerop n)
+                    1
+                    (* n (fact (- n 1)))))))
+  (should (eq 120
+              (erfi:let fact* ((n 5) (r 1))
+                (if (zerop n)
+                    r
+                    (fact* (- n 1) (* r n))))))
+  (should (equal '(just-a-silly-contrived-example hoge 5 hoge 4 hoge 3 1 2)
+                 (erfi:let (blast (r '()) . (x 1 2 (+ 1 2) 4 5))
+                   (if (>= 1 (length x))
+                       (cons 'just-a-silly-contrived-example r)
+                       (apply blast `(,(car x) ,(cadr x) ,@r) 'hoge (cddr x))))))
+  )
+
+
+
+(macroexpand '(erfi:case (* 2 3)
+                         ((2 3 5 7) 'prime)
+                         ((1 4 6 8 9) 'composite)))
+; => (let
+;        ((G30228
+;          (* 2 3)))
+;      (cond
+;       ((memq G30228 ...)
+;        (progn ...))
+;       ((memq G30228 ...)
+;        (progn ...))
+;       (t
+;        (erfi:undefined))))
+(macroexpand '(erfi:ecase (* 2 3)
+                         ((2 3 5 7) 'prime)
+                         ((1 4 6 8 9) 'composite)))
+; => (let
+;        ((G30229
+;          (* 2 3)))
+;      (cond
+;       ((memq G30229 ...)
+;        (progn ...))
+;       ((memq G30229 ...)
+;        (progn ...))
+;       (t
+;        (error "ERROR: ecase test fell through: got %s, expecting one of %s" G30229 ...))))
+
+
+
+;;; erfi-macros-test.el ends here
