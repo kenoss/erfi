@@ -49,8 +49,17 @@
   :group 'erfi)
 
 
+(defun erfi:use-short-macro-name ()
+  (mapc (lambda (x)
+          (defalias x (intern (concat "erfi:" (symbol-name x)))))
+        '(let1 if-let1 rlet1 and-let* cut cute)))
 
-;; `let1', `if-let1', `rlet1'
+
+
+;;;
+;;; `let1', `if-let1', `rlet1'
+;;;
+
 (defmacro erfi:let1 (var expr &rest body)
   (declare (indent 2))
   "[Gauche] Equivalent to (let ((VAR EXPR)) BODY ...)"
@@ -80,7 +89,12 @@
                body
                (list (erfi:and-let*:aux bs body)))))))
 
-;; [SRFI-26] `cut', `cute'
+
+
+;;;
+;;; [SRFI-26] `cut', `cute'
+;;;
+
 (defmacro erfi:cut (&rest spec)
   "[SRFI-26]"
   (let* ((partial-args '())
@@ -127,7 +141,12 @@
         `(let ,bindings (lambda ,(nreverse partial-args) (apply ,@args)))
         `(let ,bindings (lambda ,(nreverse partial-args) (funcall ,@args))))))
 
-;; [R5RS][SRFI-61] `cond'
+
+
+;;;
+;;; [R5RS][SRFI-61] `cond'
+;;;
+
 (defmacro erfi:cond (&rest clauses)
   "[R5RS][SRFI-61]"
   (if (null clauses)
@@ -158,7 +177,12 @@
                 (progn ,@(cdr c))
                 ,(erfi:cond:aux (cdr clauses)))))))
 
-;; [R5RS][SRFI-87] `case', `ecase'
+
+
+;;;
+;;; [R5RS][SRFI-87] `case', `ecase'
+;;;
+
 (defsubst erfi:case:block (var c)
   (if (eq '=> (cadr c))
       `(funcall ,(caddr c) ,var)
@@ -203,8 +227,10 @@
 
 
 
-;;; named let
-;; auxiliary functions for `erfi:let'
+;;;
+;;; Auxiliary functions for `erfi:let'
+;;;
+
 (defun erfi:zip2 (xs ys)
   (let ((res '()))
     (while (and (not (null xs))
@@ -266,7 +292,11 @@
   (car xs))
 
 
-;; [R5RS][SRFI-5] (named) let, with tail recursion optimization
+
+;;;
+;;; [R5RS][SRFI-5] (named) let, with tail recursion optimization
+;;;
+
 (defmacro erfi:let (&rest args)
   (declare (indent 2))
   "[R5RS][SRFI-5] `let' and named let with tail recursion optimization.
@@ -487,13 +517,13 @@ Second argument BODY must be one of the following form:
     ((cond)
      (let* ((res-list (mapcar (lambda (clause) (erfi:let:code-walk name clause tail-context-flag func-alist))
                               (cdr b)))
-            (judge-for-tail-call (cond ((erfi:every1 (lambda (x) (eq :not-appear (car x))) res-list)
+            (judge (cond ((erfi:every1 (lambda (x) (eq :not-appear (car x))) res-list)
                                         :not-appear)
                                        ((erfi:any1 (lambda (x) (eq :not-only-tail-call (car x))) res-list)
                                         :not-only-tail-call)
                                        (t
                                         :only-tail-call))))
-       `(,judge-for-tail-call (cond ,@(mapcar 'cadr res-list)))))
+       `(,judge (cond ,@(mapcar 'cadr res-list)))))
     ((lambda)
      (let* ((let-name-hidden (erfi:any1 (lambda (x) (eq name x)) (cadr b)))
             (res (if let-name-hidden
@@ -585,13 +615,6 @@ Second argument BODY must be one of the following form:
             (let* ((res (erfi:let:code-walk:aux name (cdr b) nil nil func-alist)))
               `(,(car res) (,(car b) ,@(cadr res)))))))))
 ;;; END OF named let
-
-
-
-(defun erfi:use-short-macro-name ()
-  (mapc (lambda (x)
-          (defalias x (intern (concat "erfi:" (symbol-name x)))))
-        '(let1 if-let1 rlet1 and-let* cut cute)))
 
 
 
