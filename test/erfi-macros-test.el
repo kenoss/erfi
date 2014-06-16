@@ -286,6 +286,11 @@
                    (if (>= 1 (length x))
                        (cons 'just-a-silly-contrived-example r)
                        (apply blast `(,(car x) ,(cadr x) ,@r) 'hoge (cddr x))))))
+  (should (equal '(hoge 0 hoge 1 hoge 2)
+                 (erfi:let lp ((lis '(0 1 2)))
+                   (if (null lis)
+                       '()
+                       `(hoge ,(car lis) ,@(lp (cdr lis)))))))
   )
 
 
