@@ -228,8 +228,29 @@
 
 
 ;;;
-;;; Auxiliary functions for `erfi:let'
+;;; Auxiliary functions for the rest
 ;;;
+
+(eval-when-compile (erfi:use-short-macro-name))
+
+(defun erfi:values (&rest args)
+  "Currently this returns a list to emulate actual `values'."
+  args)
+
+(defmacro erfi%list-receive (formals expression &rest body)
+  (declare (indent 2))
+  (if (atom formals)
+      `(let1 ,formals ,expression ,@body)
+      (let* ((sym (cl-gensym))
+             (i 0)
+             (bindings `((,sym ,expression))))
+        (while (not (atom formals))
+          (push `(,(car formals) (nth ,i ,sym)) bindings)
+          (pop formals)
+          (incf i))
+        (when (not (null formals))
+          (push `(,formals (nthcdr ,i ,sym)) bindings))
+        `(let* ,(nreverse bindings) ,@body))))
 
 (defun erfi:zip2 (xs ys)
   (let ((res '()))
@@ -264,7 +285,7 @@
     (while (not (zerop i))
       (push (pop xs) rs)
       (decf i))
-    (list (nreverse rs) xs)))
+    (erfi:values (nreverse rs) xs)))
 (defun erfi:take (xs i)
   "[SRFI-1]"
   (let ((rs '()))
@@ -298,6 +319,23 @@
     (while (consp (cdr x))
       (pop x))
     x))
+
+(defun erfi:span (pred xs)
+  "[SRFI-1]"
+  (let ((rs '()))
+    (while (and (not (null xs))
+                (funcall pred (car xs)))
+      (push (car xs) rs)
+      (pop xs))
+    (erfi:values (nreverse rs) xs)))
+(defun erfi:break (pred xs)
+  "[SRFI-1]"
+  (let ((rs '()))
+    (while (and (not (null xs))
+                (not (funcall pred (car xs))))
+      (push (car xs) rs)
+      (pop xs))
+    (erfi:values (nreverse rs) xs)))
 
 
 
@@ -622,7 +660,6 @@ Second argument BODY must be one of the following form:
            (t
             (let* ((res (erfi:let:code-walk:aux name (cdr b) nil nil func-alist)))
               `(,(car res) (,(car b) ,@(cadr res)))))))))
-;;; END OF named let
 
 
 
@@ -631,10 +668,11 @@ Second argument BODY must be one of the following form:
 ;;;
 
 (defmacro erfi:$ (&rest args)
-  "[Gauche] Haskell-ish application.
+  "[Gauche+] Haskell-ish application.
 The starting '$' (`erfi:$') introduces the macro.
 Subsequent '$' delimits \"one more arguments\"
 Subsequent '$*' delimits \"zero or more arguments\".
+'<>' designates the place of argument for '$'.
 
   (erfi:$ f a b c)           => (f a b c)
   (erfi:$ f a b c $)         => (lambda (arg) (f a b c arg))
@@ -649,6 +687,10 @@ Subsequent '$*' delimits \"zero or more arguments\".
   (erfi:$ f a b $* g c d $)  => (lambda (arg) (apply f a b (g c d arg)))
   (erfi:$ f a b $* g c d $*) => (lambda args (apply f a b (apply g c d args)))
   (erfi:$ f a b $ g c d $*)  => (lambda args (f a b (apply g c d args)))
+
+  (erfi:$ f <> b $ g c)      => (f (g c) b)
+  (erfi:$ f a b $ g <> d $)  => (lambda (arg) (f a b (g arg d)))
+  (erfi:$ f a <> $ g c)      => error
 "
   (progn
     (when (null args)
@@ -680,12 +722,21 @@ Subsequent '$*' delimits \"zero or more arguments\".
   (erfi:case (length slices)
     ((0) (lwarn 'erfi-macros :error "Invalid use of `erfi:$'"))
     ((1) (erfi%elim-funcall `(funcall ,@(car slices))))
-    ((2) (if (eq '$ (cadr slices))
-             (erfi%elim-funcall `(funcall ,@(car slices) ,sym))
-             `(apply ,@(car slices) ,sym)))
-    (else (if (eq '$ (cadr slices))
-              (erfi%elim-funcall `(funcall ,@(car slices) ,(erfi%$-rec (cddr slices) sym)))
-              `(apply ,@(car slices) ,(erfi%$-rec (cddr slices) sym))))))
+    ((2) (erfi%list-receive (xs ys) (erfi:break (cut 'eq '<> <>) (car slices))
+           (when (equal '(<>) ys)
+             (lwarn 'erfi:macros :error "Invalid use of `erfi:$'")
+             (error "Invalid use of `erfi:$'"))
+           (if (eq '$ (cadr slices))
+               (erfi%elim-funcall `(funcall ,@xs ,sym ,@(if (null ys) '() (cdr ys))))
+               `(apply ,@xs ,sym))))
+    (else (erfi%list-receive (xs ys) (erfi:break (cut 'eq '<> <>) (car slices))
+           (when (equal '(<>) ys)
+             (lwarn 'erfi:macros :error "Invalid use of `erfi:$'")
+             (error "Invalid use of `erfi:$'"))
+           (if (eq '$ (cadr slices))
+               (erfi%elim-funcall `(funcall ,@xs ,(erfi%$-rec (cddr slices) sym)
+                                            ,@(if (null ys) '() (cdr ys))))
+              `(apply ,@(car slices) ,(erfi%$-rec (cddr slices) sym)))))))
 (defun erfi%elim-funcall (sexp)
   ;; Eliminate explicit funcall if able.  Asumme that SEXP is a form (funcall ...) .
   ;;

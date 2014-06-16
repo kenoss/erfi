@@ -109,6 +109,29 @@
 
 
 
+(ert-deftest erfi-test:list-receive ()
+  (flet ((cl-gensym (&optional prefix) 'G000))
+    (should (equal '(let ((all (divrem 13 4)))
+                      all)
+                   (macroexpand '(erfi%list-receive all (divrem 13 4)
+                                   all))))
+    (should (equal '(let* ((G000 (divrem 13 4))
+                           (a (nth 0 G000))
+                           (b (nth 1 G000)))
+                      a)
+                   (macroexpand '(erfi%list-receive (a b) (divrem 13 4)
+                                   a))))
+    (should (equal '(let* ((G000 (divrem 13 4))
+                           (a (nth 0 G000))
+                           (b (nth 1 G000))
+                           (c (nthcdr 2 G000)))
+                      a)
+                   (macroexpand '(erfi%list-receive (a b . c) (divrem 13 4)
+                                   a))))
+    ))
+
+
+
 (defvar dummy-func-alist
   `((naive-funcall . ,(lambda (expr) '(REPLACED)))
     (apply . ,(lambda (expr) '(REPLACED)))))
@@ -334,11 +357,16 @@
                    (macroexpand '(erfi:$ $))))
     (should (equal '(function (lambda (arg) ((arg))))
                    (macroexpand '(erfi:$ $ $))))
-    )
-  )
 
-
-
+    ;; <> can designate the place of argument like `cut'.
+    (should (equal '(f (g c) b)
+                   (macroexpand '(erfi:$ f <> b $ g c))))
+    (should (equal '(function (lambda (arg) (f a b (g arg d))))
+                   (macroexpand '(erfi:$ f a b $ g <> d $))))
+    (should (equal '(function (lambda (arg) (f (g arg d) b)))
+                   (macroexpand '(erfi:$ f <> b $ g <> d $))))
+    (should-error (macroexpand '(erfi:$ f a <> $ g c)))
+    ))
 
 
 
