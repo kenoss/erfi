@@ -295,6 +295,55 @@
 
 
 
+(ert-deftest erfi-test:$ ()
+  (flet ((cl-gensym (&optional prefix) 'arg))
+    (should (equal '(f a b c)
+                   (macroexpand '(erfi:$ f a b c))))
+    (should (equal '(function (lambda (arg) (f a b c arg)))
+                   (macroexpand '(erfi:$ f a b c $))))
+    (should (equal '(f (g a b c))
+                   (macroexpand '(erfi:$ f $ g a b c))))
+    (should (equal '(function (lambda (arg) (f (g a b c arg))))
+                   (macroexpand '(erfi:$ f $ g a b c $))))
+    (should (equal '(f (g (h a b c)))
+                   (macroexpand '(erfi:$ f $ g $ h a b c))))
+    (should (equal '(f a (g b (h c)))
+                   (macroexpand '(erfi:$ f a $ g b $ h c))))
+    (should (equal '(function (lambda (arg) (f a (g b (h c arg)))))
+                   (macroexpand '(erfi:$ f a $ g b $ h c $))))
+    (should (equal '(function (lambda arg (apply f a b c arg)))
+                   (macroexpand '(erfi:$ f a b c $*))))
+    (should (equal '(apply f a b (g c d))
+                   (macroexpand '(erfi:$ f a b $* g c d))))
+    (should (equal '(function (lambda (arg) (apply f a b (g c d arg))))
+                   (macroexpand '(erfi:$ f a b $* g c d $))))
+    (should (equal '(function (lambda arg (apply f a b (apply g c d arg))))
+                   (macroexpand '(erfi:$ f a b $* g c d $*))))
+    (should (equal '(function (lambda arg (f a b (apply g c d arg))))
+                   (macroexpand '(erfi:$ f a b $ g c d $*))))
+    (should (equal '(funcall 'f (g (funcall 'h a b c)))
+                   (macroexpand '(erfi:$ 'f $ g $ 'h a b c))))
+
+    (should (equal '((ff))
+                   (macroexpand '(erfi:$ $ ff))))
+    (should (equal '(((fff)))
+                   (macroexpand '(erfi:$ $ $ fff))))
+    (should-error (macroexpand '(erfi:$)))
+    ;; These may be useful in Scheme but not in Emacs Lisp since `funcall' is necessary.
+    (should (equal '(function (lambda (arg) (arg)))
+                   (macroexpand '(erfi:$ $))))
+    (should (equal '(function (lambda (arg) ((arg))))
+                   (macroexpand '(erfi:$ $ $))))
+    )
+  )
+
+
+
+
+
+
+
+
 (macroexpand '(erfi:case (* 2 3)
                          ((2 3 5 7) 'prime)
                          ((1 4 6 8 9) 'composite)))

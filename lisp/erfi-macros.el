@@ -285,11 +285,19 @@
   "[SRFI-1]"
   (erfi:take xs (- (length xs) i)))
 
-(defun erfi:last (xs)
-  "[SRFI-1]"
-  (while (not (null (cdr xs)))
-    (pop xs))
-  (car xs))
+(defun erfi:last (x)
+  "[SRFI-1]
+\n(fn pair)"
+  (car (erfi:last-pair x)))
+(defun erfi:last-pair (x)
+  "[SRFI-1]
+\n(fn pair)"
+  (progn
+    (when (not (consp x))
+      (error "erfi:last-pair: pair required: %s" x))
+    (while (consp (cdr x))
+      (pop x))
+    x))
 
 
 
@@ -615,6 +623,82 @@ Second argument BODY must be one of the following form:
             (let* ((res (erfi:let:code-walk:aux name (cdr b) nil nil func-alist)))
               `(,(car res) (,(car b) ,@(cadr res)))))))))
 ;;; END OF named let
+
+
+
+;;;
+;;; Gauche's Haskell-ish application
+;;;
+
+(defmacro erfi:$ (&rest args)
+  "[Gauche] Haskell-ish application.
+The starting '$' (`erfi:$') introduces the macro.
+Subsequent '$' delimits \"one more arguments\"
+Subsequent '$*' delimits \"zero or more arguments\".
+
+  (erfi:$ f a b c)           => (f a b c)
+  (erfi:$ f a b c $)         => (lambda (arg) (f a b c arg))
+  (erfi:$ f $ g a b c)       => (f (g a b c))
+  (erfi:$ f $ g a b c $)     => (lambda (arg) (f (g a b c arg)))
+  (erfi:$ f $ g $ h a b c)   => (f (g (h a b c)))
+  (erfi:$ f a $ g b $ h c)   => (f a (g b (h c)))
+  (erfi:$ f a $ g b $ h $)   => (lambda (arg) (f a (g b (h arg))))
+
+  (erfi:$ f a b c $*)        => (lambda args (apply f a b c args))
+  (erfi:$ f a b $* g c d)    => (apply f a b (g c d))
+  (erfi:$ f a b $* g c d $)  => (lambda (arg) (apply f a b (g c d arg)))
+  (erfi:$ f a b $* g c d $*) => (lambda args (apply f a b (apply g c d args)))
+  (erfi:$ f a b $ g c d $*)  => (lambda args (f a b (apply g c d args)))
+"
+  (progn
+    (when (null args)
+      (lwarn 'erfi:macros :error "Invalid use of `erfi:$'")
+      (error "Invalid use of `erfi:$'"))
+    (erfi%$-aux args)))
+(defun erfi%$-aux (args)
+  (let1 p (erfi%$-parse args '() '())
+    (cond ((eq (erfi:last p) '$)
+           (let1 sym (cl-gensym)
+             `(lambda (,sym) ,(erfi%$-rec p sym))))
+          ((eq (erfi:last p) '$*)
+           (let1 sym (cl-gensym)
+             `(lambda ,sym ,(erfi%$-rec p sym))))
+          (t
+           (erfi%$-rec p nil)))))
+(defun erfi%$-parse (args stack res)
+  ;; (erfi%$-parse '(f a b $ g c $* h d) '() '())
+  ;; => ((f a b) $ (g c) $* (h d))
+  (cond ((null args)
+         (nreverse (if (null stack)
+                       res
+                       (cons (nreverse stack) res))))
+        ((memq (car args) '($ $*))
+         (erfi%$-parse (cdr args) '() `(,(car args) ,(nreverse stack) ,@res)))
+        (t
+         (erfi%$-parse (cdr args) (cons (car args) stack) res))))
+(defun erfi%$-rec (slices sym)
+  (erfi:case (length slices)
+    ((0) (lwarn 'erfi-macros :error "Invalid use of `erfi:$'"))
+    ((1) (erfi%elim-funcall `(funcall ,@(car slices))))
+    ((2) (if (eq '$ (cadr slices))
+             (erfi%elim-funcall `(funcall ,@(car slices) ,sym))
+             `(apply ,@(car slices) ,sym)))
+    (else (if (eq '$ (cadr slices))
+              (erfi%elim-funcall `(funcall ,@(car slices) ,(erfi%$-rec (cddr slices) sym)))
+              `(apply ,@(car slices) ,(erfi%$-rec (cddr slices) sym))))))
+(defun erfi%elim-funcall (sexp)
+  ;; Eliminate explicit funcall if able.  Asumme that SEXP is a form (funcall ...) .
+  ;;
+  ;;   (erfi%elim-funcall '(funcall 'f a b))
+  ;;   => (funcall 'f a b)
+  ;;   (erfi%elim-funcall '(funcall f a b))
+  ;;   => (f a b)
+  (progn
+    (when (not (eq 'funcall (car sexp)))
+      (lwarn 'erfi-macros :error "Internal error."))
+    (if (and (consp (cadr sexp)) (eq 'quote (caadr sexp)))
+        sexp
+        (cdr sexp))))
 
 
 
