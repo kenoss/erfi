@@ -16,7 +16,8 @@
 ;;     (require 'erfi-macros)
 ;;     (erfi:use-short-macro-name))
 ;; Then the following macros are available:
-;;   `let1' `if-let1' `rlet1' `and-let*'
+;;   `let1' `if-let1' `rlet1' `and-let*' `dynamic-let'
+;;   `pop!' `push!'
 ;;   `cut' `cute'
 ;;   `erfi:cond'
 ;;   `erfi:case' `erfi:ecase'
@@ -52,7 +53,18 @@
 (defun erfi:use-short-macro-name ()
   (mapc (lambda (x)
           (defalias x (intern (concat "erfi:" (symbol-name x)))))
-        '(let1 if-let1 rlet1 and-let* cut cute)))
+        '(let1 if-let1 rlet1 and-let* dynamic-let pop! push! cut cute)))
+
+
+
+;;;
+;;; Pop and push
+;;;
+
+(defmacro erfi:pop! (lis)
+  `(setq ,lis (cdr ,lis)))
+(defmacro erfi:push! (value lis)
+  `(setq ,lis (cons ,value ,lis)))
 
 
 
@@ -88,6 +100,20 @@
            (if (null bs)
                body
                (list (erfi:and-let*:aux bs body)))))))
+
+(defmacro erfi:dynamic-let (bindings &rest body)
+  "Like `let', but dynamically scoped.
+This is alike to `setq' but restore old values when BODY ends."
+  (declare (indent 1))
+  (let* ((vars (mapcar 'car bindings))
+         (old-vars (mapcar (lambda (x) (cl-gensym)) vars)))
+    `(let ,(erfi:zip2 old-vars vars)
+       (unwind-protect
+           (progn
+             ,@(mapcar (lambda (b) `(setq ,@b)) bindings)
+             ,@body)
+         (progn
+           ,@(mapcar (lambda (b) `(setq ,@b)) (erfi:zip2 vars old-vars)))))))
 
 
 

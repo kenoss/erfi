@@ -372,6 +372,19 @@
 
 
 
+(macroexpand '(erfi:dynamic-let ((a 0) (b 1)) body1 body2))
+; => (let
+;        ((G33404 a)
+;         (G33405 b))
+;      (unwind-protect
+;          (progn
+;            (setq a 0)
+;            (setq b 1)
+;            body1 body2)
+;        (progn
+;          (setq a G33404)
+;          (setq b G33405))))
+
 (macroexpand '(erfi:case (* 2 3)
                          ((2 3 5 7) 'prime)
                          ((1 4 6 8 9) 'composite)))
