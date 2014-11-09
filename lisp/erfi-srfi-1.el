@@ -389,14 +389,14 @@ Raise an error if X is a non-nil atom."
 
 (defalias 'erfi:reverse! 'nreverse)
 
-(defun append-reverse (rev-head tail)
+(defun erfi:append-reverse (rev-head tail)
   "[SRFI-1]"
   (progn
     (while (not (null rev-head))
       (push (car rev-head) tail)
       (pop rev-head))
     tail))
-(defalias 'append-reverse! 'append-reverse)
+(defalias 'erfi:append-reverse! 'erfi:append-reverse)
 
 (defun erfi:zip (xs &rest xss)
   "[SRFI-1]"
