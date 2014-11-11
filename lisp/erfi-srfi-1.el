@@ -358,29 +358,17 @@ Raise an error if X is a non-nil atom."
       nil
       (length clist)))
 
-;; (defun erfi:append! (&rest xss)
-;;   (if (null xss)
-;;       '()
-;;       (cdr (rlet1 dummy-head (list nil)
-;;              (erfi:let lp ((xss xss) (prev-tail dummy-head))
-;;                (cond ((null (cdr xss))
-;;                       (setcdr prev-tail (car xss)))
-;;                      ((null (car xss))
-;;                       (lp (cdr xss) prev-tail))
-;;                      (t
-;;                       (let1 xs (car xss)
-;;                         (setcdr prev-tail xs)
-;;                         (while (not (null (cdr xs)))
-;;                           (pop xs))
-;;                         (lp (cdr xss) xs)))))))))
-(defun erfi:append! (&rest xss)
-  (cdr (rlet1 dummy-head (list nil)
-         (let1 p dummy-head
-           (while (not (null xss))
-             (while (not (null (cdr p)))
-               (pop p))
-             (setcdr p (car xss))
-             (pop xss))))))
+(defalias 'erfi:append! 'nconc)
+(put 'erfi:append! 'function-documentation
+     "[SRFI-1+] Append lists destructively and return the result list.
+
+Each but the last argument must be a proper list;  The last one may be any value
+at all.  It is guaranteed nil in the REST are ignored and do not raise errors.
+
+It is guaranteed to alter cons cells in the argument lists except the last one.
+The last argument is never altered; the result list shares structure with this
+parameter.")
+
 
 (defsubst erfi:concatenate (xss)
   (apply 'append xss))
