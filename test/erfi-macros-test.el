@@ -18,6 +18,9 @@
 (require 'erfi-macros)
 (erfi:use-short-macro-name)
 
+(require 'cl-lib)
+(require 'cl)
+
 
 
 (defun erfi:undefined ()
