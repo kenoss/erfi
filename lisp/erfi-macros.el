@@ -167,7 +167,8 @@ This is alike to `setq' but restore old values when BODY ends."
            (cond ((eq '<> (car spec))
                   (let ((sym (cl-gensym)))
                     `((,sym ,@(car rest)) (,sym ,@(cadr rest)) ,(caddr rest))))
-                 ((listp (car spec))
+                 ((and (listp (car spec))
+                       (not (eq 'quote (caar spec))))
                   (let ((sym (cl-gensym)))
                     `(,(car rest) (,sym ,@(cadr rest)) ((,sym ,(car spec)) ,@(caddr rest)))))
                  ;; This is an optimization; eliminating redundant bindings.

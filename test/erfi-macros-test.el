@@ -91,6 +91,13 @@
                       (function (lambda (G000)
                                   (funcall '+ G000 G000))))
                    (macroexpand-all '(cute '+ (- 1 2) <>))))
+    (should (equal '(function (lambda (G000) (list G000 '(a b c))))
+                   (macroexpand '(cute list <> '(a b c)))))
+    (should (equal '(let ((b "bar"))
+                      (let ((G000 (cons 'a (cons b '(c)))))
+                        (function (lambda (G000)
+                                    (list G000 G000)))))
+                   (macroexpand-all '(let1 b "bar" (cute list <> `(a ,b c))))))
     ))
 
 ;; Import from http://srfi.schemers.org/srfi-26/check.scm
