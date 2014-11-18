@@ -771,7 +771,9 @@ Subsequent '$*' delimits \"zero or more arguments\".
   (erfi:$ f <> b $ g c)      => (f (g c) b)
   (erfi:$ f a b $ g <> d $)  => (lambda (arg) (f a b (g arg d)))
   (erfi:$ f a <> $ g c)      => error
-"
+
+There are restrictions use of last `$*', and use of function in variable.
+See also `erfi:cut'."
   (progn
     (when (null args)
       (lwarn 'erfi:macros :error "Invalid use of `erfi:$'")
