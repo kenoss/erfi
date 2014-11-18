@@ -1,4 +1,4 @@
-;;; erfi-macros-test.el ---
+;;; erfi-macros-test.el --- -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2014  Ken Okada
 
