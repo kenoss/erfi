@@ -192,6 +192,21 @@ This is alike to `setq' but restore old values when BODY ends."
 (defmacro erfi:cut (&rest spec)
   "[SRFI-26] Partial application.
 
+Examples:
+
+  ;; We can specialize functions without quotes;
+  (cut + <> 1)         => (lambda (x) (+ x 1))
+  (cut + <> 1 <>)      => (lambda (x y) (+ x 1 y))
+  ;; also, with quotes.
+  (cut '+ <> 1)        => (lambda (x) (funcall '+ x 1))
+  ;; Quote is necessary to use rest parameter.
+  (cut '+ <> 1 <...>)  => (lambda (x &rest args) (apply '+ x 1 args))
+  ;; If one want to use a name of function for a variable, use explicit funcall.
+  (let1 list (lambda (x) (* 2 x))
+    (cut list <>)          => (lambda (x) (list x))
+    (cut funcall list <>)  => (lambda (x) (funcall list x))
+    )
+
 For more details, see SRFI documnet and tests `erfi-test:cut',
 `erfi-test:cut:import', `erfi-test:cut:allows-no-quote',
 `erfi-test:cut:does-not-evaluate',
@@ -208,6 +223,14 @@ For more details, see SRFI documnet and tests `erfi-test:cut',
 (defmacro erfi:cute (&rest spec)
   "[SRFI-26] Like `erfi:cut', but non-slots SLOT-OR-EXPR are evaluated
 when function is generated.
+
+Example:
+
+  (cute + <> 1 (+ 2 3) (* 4 5))
+  => (let ((a (+ 2 3))
+           (b (* 4 5)))
+       (lambda (x) (+ x 1 a b)))
+
 \n(fn <slot-or-expr> <slot-or-expr>* [<...>])"
   (progn
     (unless (<= 1 (length spec))
