@@ -711,8 +711,8 @@ Subsequent '$*' delimits \"zero or more arguments\".
   (erfi:$ f a b c $*)        => (lambda args (apply f a b c args))
   (erfi:$ f a b $* g c d)    => (apply f a b (g c d))
   (erfi:$ f a b $* g c d $)  => (lambda (arg) (apply f a b (g c d arg)))
-  (erfi:$ f a b $* g c d $*) => (lambda args (apply f a b (apply g c d args)))
-  (erfi:$ f a b $ g c d $*)  => (lambda args (f a b (apply g c d args)))
+  (erfi:$ f a b $* g c d $*) => (lambda (&rest args) (apply f a b (apply g c d args)))
+  (erfi:$ f a b $ g c d $*)  => (lambda (&rest args) (f a b (apply g c d args)))
 
   (erfi:$ f <> b $ g c)      => (f (g c) b)
   (erfi:$ f a b $ g <> d $)  => (lambda (arg) (f a b (g arg d)))
@@ -730,7 +730,7 @@ Subsequent '$*' delimits \"zero or more arguments\".
              `(lambda (,sym) ,(erfi%$-rec p sym))))
           ((eq (erfi:last p) '$*)
            (let1 sym (cl-gensym)
-             `(lambda ,sym ,(erfi%$-rec p sym))))
+             `(lambda (&rest ,sym) ,(erfi%$-rec p sym))))
           (t
            (erfi%$-rec p nil)))))
 (defun erfi%$-parse (args stack res)
