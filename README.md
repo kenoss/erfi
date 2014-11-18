@@ -37,7 +37,7 @@ The above code is tedious and uninteresting;  everyone can write down it using
 explicit while loop.  However, the real power of `erfi:let` will be seen, for
 example, when you use it for loop more than one dimensional.  In my humble
 opinion, these recursion, looking like normal recursion, is more readable than
-"loop" langage in CL because they are in the range of Lisp langage.  Writing
+"loop" langage in CL because named let is in the range of Lisp langage.  Writing
 complicated loop will show the difference vividly.
 
 Another aspect is functional programming.  ERFI recommends and supports it in
