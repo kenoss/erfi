@@ -29,6 +29,114 @@
 
 
 
+(ert-deftest erfi-test:cut ()
+  (flet ((cl-gensym (&optional prefix) 'G000))
+    ;; Argument place
+    (should (equal '(function (lambda (G000) (funcall '+ G000 1)))
+                   (macroexpand '(cut '+ <> 1))))
+    (should (equal '(function (lambda (G000 G000)
+                                (funcall '+ G000 1 G000)))
+                   (macroexpand '(cut '+ <> 1 <>))))
+    (should (equal '(function (lambda (G000 &rest G000)
+                                (apply '+ G000 1 G000)))
+                   (macroexpand '(cut '+ <> 1 <...>))))
+    ;; Undefined in SRFI-26
+    (should-error  (macroexpand '(cut '+ <> 1 <...> 2)))
+    ;; Function place
+    (should (equal '(function (lambda (G000)
+                                (funcall G000 1)))
+                   (macroexpand '(cut <> 1))))
+    (should (equal '(function (lambda (G000 G000)
+                                (funcall G000 G000 1)))
+                   (macroexpand '(cut <> <> 1))))
+    (should (equal '(function (lambda (G000 G000 G000)
+                                (funcall G000 G000 1 G000)))
+                   (macroexpand '(cut <> <> 1 <>))))
+    (should (equal '(function (lambda (G000 G000 &rest G000)
+                                (apply G000 G000 1 G000)))
+                   (macroexpand '(cut <> <> 1 <...>))))
+    ;; Undefined in SRFI-26
+    (should-error  (macroexpand '(cut <> <> 1 <...> 2)))
+    ))
+
+(ert-deftest erfi-test:cut:allows-no-quote ()
+  (flet ((cl-gensym (&optional prefix) 'G000))
+    ;; We can omit quote of function;
+    (should (equal '(function (lambda (G000) (+ G000 1)))
+                   (macroexpand '(cut + <> 1))))
+    (should (equal '(function (lambda (G000 G000) (+ G000 1 G000)))
+                   (macroexpand '(cut + <> 1 <>))))
+    ;; but we can't with rest parameters <...>.
+    (should (equal '(function (lambda (G000 &rest G000) (apply + G000 1 G000)))
+                   (macroexpand '(cut + <> 1 <...>))))
+    (should-error (funcall (cut + <> 1 <...>) 0 1 2))
+    ;; If one want to use as variable a name of function, use explicit funcall.
+    (let1 list (lambda (x) (* 2 x))
+      (should (equal '(1)
+                     (funcall (cut list <>) 1)))
+      (should (equal 2
+                     (funcall (cut funcall list <>) 1))))
+    ))
+
+(ert-deftest erfi-test:cut:does-not-evaluate ()
+  (flet ((cl-gensym (&optional prefix) 'G000))
+    (should (equal '(function (lambda (G000)
+                                (funcall '+ (- 1 2) G000)))
+                   (macroexpand-all '(cut '+ (- 1 2) <>))))
+    ))
+
+(ert-deftest erfi-test:cute:does-evaluate ()
+  (flet ((cl-gensym (&optional prefix) 'G000))
+    (should (equal '(let ((G000 (- 1 2)))
+                      (function (lambda (G000)
+                                  (funcall '+ G000 G000))))
+                   (macroexpand-all '(cute '+ (- 1 2) <>))))
+    ))
+
+;; Import from http://srfi.schemers.org/srfi-26/check.scm
+(ert-deftest erfi-test:cut:import ()
+  (should (equal (funcall (cut 'list)) '()))
+  (should (equal (funcall (cut 'list <...>)) '()))
+  (should (equal (funcall (cut 'list 1)) '(1)))
+  (should (equal (funcall (cut 'list <>) 1) '(1)))
+  (should (equal (funcall (cut 'list <...>) 1) '(1)))
+  (should (equal (funcall (cut 'list 1 2)) '(1 2)))
+  (should (equal (funcall (cut 'list 1 <>) 2) '(1 2)))
+  (should (equal (funcall (cut 'list 1 <...>) 2) '(1 2)))
+  (should (equal (funcall (cut 'list 1 <...>) 2 3 4) '(1 2 3 4)))
+  (should (equal (funcall (cut 'list 1 <> 3 <>) 2 4) '(1 2 3 4)))
+  (should (equal (funcall (cut 'list 1 <> 3 <...>) 2 4 5 6) '(1 2 3 4 5 6)))
+  (should (equal (let* ((x 'wrong) (y (cut list x))) (setq x 'ok) (funcall y)) '(ok)))
+  (should (equal (let ((a 0))
+                   (mapcar (cut + (progn (setq a (+ a 1)) a) <>)
+                           '(1 2))
+                   a)
+                 2))
+  )
+
+;; Import from http://srfi.schemers.org/srfi-26/check.scm
+(ert-deftest erfi-test:cute:import ()
+  (should (equal (funcall (cute 'list)) '()))
+  (should (equal (funcall (cute 'list <...>)) '()))
+  (should (equal (funcall (cute 'list 1)) '(1)))
+  (should (equal (funcall (cute 'list <>) 1) '(1)))
+  (should (equal (funcall (cute 'list <...>) 1) '(1)))
+  (should (equal (funcall (cute 'list 1 2)) '(1 2)))
+  (should (equal (funcall (cute 'list 1 <>) 2) '(1 2)))
+  (should (equal (funcall (cute 'list 1 <...>) 2) '(1 2)))
+  (should (equal (funcall (cute 'list 1 <...>) 2 3 4) '(1 2 3 4)))
+  (should (equal (funcall (cute 'list 1 <> 3 <>) 2 4) '(1 2 3 4)))
+  (should (equal (funcall (cute 'list 1 <> 3 <...>) 2 4 5 6) '(1 2 3 4 5 6)))
+  (should (equal (let1 lexical-binding t
+                   (let ((a 0))
+                     (mapcar (cute + (progn (setq a (+ a 1)) a) <>)
+                             '(1 2))
+                     a))
+                 1))
+  )
+
+
+
 (ert-deftest erfi-test:case ()
   (should (equal 'zero
                  (erfi:case (car '(0 1 2))

@@ -121,51 +121,105 @@ This is alike to `setq' but restore old values when BODY ends."
 ;;; [SRFI-26] `cut', `cute'
 ;;;
 
+(defun erfi%elim-funcall (sexp)
+  ;; Eliminate explicit funcall if able.  Asumme that SEXP is a form (funcall ...) .
+  ;;
+  ;;   (erfi%elim-funcall '(funcall 'f a b))
+  ;;   => (funcall 'f a b)
+  ;;   (erfi%elim-funcall '(funcall f a b))
+  ;;   => (f a b)
+  ;;
+  ;; Note that it is not essential: Emacs Lisp byte code compiler does the same thing.
+  (progn
+    (when (not (eq 'funcall (car sexp)))
+      (lwarn 'erfi-macros :error "Internal error."))
+    (if (and (consp (cadr sexp)) (eq 'quote (caadr sexp)))
+        sexp
+        (cdr sexp))))
+
+(defun erfi%cut:aux (spec)
+  ;; Return (arg-list replaced-spec)
+  (cond ((null spec)
+         '(() ()))
+        ((eq '<...> (car spec))
+         (if (not (null (cdr spec)))
+             (lwarn 'erfi :error "Bad use of rest-slot <...>.")
+             (let ((sym (cl-gensym)))
+               `((&rest ,sym) (,sym)))))
+        (t
+         (let ((rest (erfi%cut:aux (cdr spec))))
+           (if (eq '<> (car spec))
+               (let ((sym (cl-gensym)))
+                 `((,sym ,@(car rest)) (,sym ,@(cadr rest))))
+               `(,(car rest) (,(car spec) ,@(cadr rest))))))))
+
+(defun erfi%cute:aux (spec)
+  ;; Return (arg-list replaced-spec nse-bindings)
+  (cond ((null spec)
+         '(() () ()))
+        ((eq '<...> (car spec))
+         (if (not (null (cdr spec)))
+             (lwarn 'erfi :error "Bad use of rest-slot <...>.")
+             (let ((sym (cl-gensym)))
+               `((&rest ,sym) (,sym) ()))))
+        (t
+         (let ((rest (erfi%cute:aux (cdr spec))))
+           (cond ((eq '<> (car spec))
+                  (let ((sym (cl-gensym)))
+                    `((,sym ,@(car rest)) (,sym ,@(cadr rest)) ,(caddr rest))))
+                 ((listp (car spec))
+                  (let ((sym (cl-gensym)))
+                    `(,(car rest) (,sym ,@(cadr rest)) ((,sym ,(car spec)) ,@(caddr rest)))))
+                 ;; This is an optimization; eliminating redundant bindings.
+                 ;; This may cause an unpleasant expansion under dynamic binding.
+                 ;; However we must use `lexical-let' to avoid it completely.
+                 ;; We do not do since it is not recommended using ERFI under `lexical-binding' nil.
+                 (t
+                  `(,(car rest) (,(car spec) ,@(cadr rest)) ,(caddr rest))))))))
+
+(defun erfi%cut-cute:common (arg-list fn replaced-spec)
+  (if (memq '&rest arg-list)
+      (if (eq '<> fn)
+          (let ((sym (cl-gensym)))
+            `(lambda (,sym ,@arg-list) (apply ,sym ,@replaced-spec)))
+          `(lambda ,arg-list (apply ,fn ,@replaced-spec)))
+      (if (eq '<> fn)
+          (let ((sym (cl-gensym)))
+            `(lambda (,sym ,@arg-list) (funcall ,sym ,@replaced-spec)))
+          `(lambda ,arg-list ,(erfi%elim-funcall `(funcall ,fn ,@replaced-spec))))))
+
 (defmacro erfi:cut (&rest spec)
-  "[SRFI-26]"
-  (let* ((partial-args '())
-         (dotted-flag nil)
-         (args (mapcar (lambda (x)
-                         (cond ((eq x '<>)
-                                (let ((y (cl-gensym)))
-                                  (push y partial-args)
-                                  y))
-                               ((eq x '<...>)
-                                (let ((y (cl-gensym)))
-                                  (push '&rest partial-args)
-                                  (push y partial-args)
-                                  (setq dotted-flag t)
-                                  y))
-                               (t
-                                x)))
-                       spec)))
-    (if dotted-flag
-        `(lambda ,(nreverse partial-args) (apply ,@args))
-        `(lambda ,(nreverse partial-args) (funcall ,@args)))))
+  "[SRFI-26] Partial application.
+
+For more details, see SRFI documnet and tests `erfi-test:cut',
+`erfi-test:cut:import', `erfi-test:cut:allows-no-quote',
+`erfi-test:cut:does-not-evaluate',
+\n(fn <slot-or-expr> <slot-or-expr>* [<...>])"
+  (progn
+    (unless (<= 1 (length spec))
+      (lwarn 'erfi :error "Wrong number of arguments."))
+    (let* ((fn (car spec))
+           (arg-list+replaced-spec (erfi%cut:aux (cdr spec)))
+           (arg-list (car arg-list+replaced-spec))
+           (replaced-spec (cadr arg-list+replaced-spec)))
+      (erfi%cut-cute:common arg-list fn replaced-spec))))
+
 (defmacro erfi:cute (&rest spec)
-  "[SRFI-26]"
-  (let* ((partial-args '())
-         (dotted-flag nil)
-         (bindings '())
-         (args (mapcar (lambda (x)
-                         (cond ((eq x '<>)
-                                (let ((y (cl-gensym)))
-                                  (push y partial-args)
-                                  y))
-                               ((eq x '<...>)
-                                (let ((y (cl-gensym)))
-                                  (push '&rest partial-args)
-                                  (push y partial-args)
-                                  (setq dotted-flag t)
-                                  y))
-                               (t
-                                (let ((y (cl-gensym)))
-                                  (push `(,y ,x) bindings)
-                                  y))))
-                       spec)))
-    (if dotted-flag
-        `(let ,bindings (lambda ,(nreverse partial-args) (apply ,@args)))
-        `(let ,bindings (lambda ,(nreverse partial-args) (funcall ,@args))))))
+  "[SRFI-26] Like `erfi:cut', but non-slots SLOT-OR-EXPR are evaluated
+when function is generated.
+\n(fn <slot-or-expr> <slot-or-expr>* [<...>])"
+  (progn
+    (unless (<= 1 (length spec))
+      (lwarn 'erfi :error "Wrong number of arguments."))
+    (let* ((fn (car spec))
+           (arg+replaced+nse (erfi%cute:aux (cdr spec)))
+           (arg-list (car arg+replaced+nse))
+           (replaced-spec (cadr arg+replaced+nse))
+           (nse-bindings (caddr arg+replaced+nse))
+           (wrap (if (null nse-bindings)
+                     'identity
+                     (lambda (sexp) `(let ,nse-bindings ,sexp)))))
+      (funcall wrap (erfi%cut-cute:common arg-list fn replaced-spec)))))
 
 
 
@@ -763,19 +817,6 @@ Subsequent '$*' delimits \"zero or more arguments\".
                (erfi%elim-funcall `(funcall ,@xs ,(erfi%$-rec (cddr slices) sym)
                                             ,@(if (null ys) '() (cdr ys))))
               `(apply ,@(car slices) ,(erfi%$-rec (cddr slices) sym)))))))
-(defun erfi%elim-funcall (sexp)
-  ;; Eliminate explicit funcall if able.  Asumme that SEXP is a form (funcall ...) .
-  ;;
-  ;;   (erfi%elim-funcall '(funcall 'f a b))
-  ;;   => (funcall 'f a b)
-  ;;   (erfi%elim-funcall '(funcall f a b))
-  ;;   => (f a b)
-  (progn
-    (when (not (eq 'funcall (car sexp)))
-      (lwarn 'erfi-macros :error "Internal error."))
-    (if (and (consp (cadr sexp)) (eq 'quote (caadr sexp)))
-        sexp
-        (cdr sexp))))
 
 
 
