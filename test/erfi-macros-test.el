@@ -70,7 +70,7 @@
     (should (equal '(function (lambda (G000 &rest G000) (apply + G000 1 G000)))
                    (macroexpand '(cut + <> 1 <...>))))
     (should-error (funcall (cut + <> 1 <...>) 0 1 2))
-    ;; If one want to use as variable a name of function, use explicit funcall.
+    ;; If one want to use a name of function for a variable, use explicit funcall.
     (let1 list (lambda (x) (* 2 x))
       (should (equal '(1)
                      (funcall (cut list <>) 1)))
