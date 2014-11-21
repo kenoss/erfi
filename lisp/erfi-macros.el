@@ -672,9 +672,7 @@ Second argument BODY must be one of the following form:
 ...
 "
   (if (atom body)
-      `(,(if (eq name body)
-             :not-only-tail-call
-             :not-appear)
+      `(,(if (eq name body) :not-only-tail-call :not-appear)
         ,body)
       (let ((b (if (memq (car body) '(lambda erfi:let)) ; more?
                    body
@@ -689,11 +687,11 @@ Second argument BODY must be one of the following form:
      (let* ((res-list (mapcar (lambda (clause) (erfi:let:code-walk name clause tail-context-flag func-alist))
                               (cdr b)))
             (judge (cond ((erfi:every1 (lambda (x) (eq :not-appear (car x))) res-list)
-                                        :not-appear)
-                                       ((erfi:any1 (lambda (x) (eq :not-only-tail-call (car x))) res-list)
-                                        :not-only-tail-call)
-                                       (t
-                                        :only-tail-call))))
+                          :not-appear)
+                         ((erfi:any1 (lambda (x) (eq :not-only-tail-call (car x))) res-list)
+                          :not-only-tail-call)
+                         (t
+                          :only-tail-call))))
        `(,judge (cond ,@(mapcar 'cadr res-list)))))
     ((lambda)
      (let* ((let-name-hidden (erfi:any1 (lambda (x) (eq name x)) (cadr b)))
@@ -717,12 +715,11 @@ Second argument BODY must be one of the following form:
                      (erfi:let:code-walk name (cddr b) tail-context-flag func-alist)))
             (bindings-res (mapcar (lambda (x) (erfi:let:code-walk-1 name (cadr x) nil func-alist))
                                   (cadr b)))
-            (judge (cond ((or (eq :not-only-tail-call (car res))
-                              (erfi:any1 (lambda (x) (not (eq :not-appear (car x))))
-                                         bindings-res))
-                          :not-only-tail-call)
-                         (t
-                          (car res)))))
+            (judge (if (or (eq :not-only-tail-call (car res))
+                           (erfi:any1 (lambda (x) (not (eq :not-appear (car x))))
+                                      bindings-res))
+                       :not-only-tail-call
+                       (car res))))
        (when let-name-hidden
          (lwarn 'erfi-macros :warning "`%s' should not hide variable %s used for `erfi:let'" (car b) name))
        `(,judge (,(car b) ,(erfi:zip2 (mapcar 'car (cadr b))
@@ -739,13 +736,12 @@ Second argument BODY must be one of the following form:
               (rest-bind-res (if (null c-rest-bind)
                                  `(:not-appear '())
                                  (erfi:let:code-walk name (cadr c-rest-bind) nil func-alist)))
-              (judge (cond ((or (eq :not-only-tail-call (car body-res))
-                                (not (eq :not-appear (car rest-bind-res)))
-                                (erfi:any1 (lambda (x) (not (eq :not-appear (car x))))
-                                           bindings-res))
-                            :not-only-tail-call)
-                           (t
-                            (car body-res)))))
+              (judge (if (or (eq :not-only-tail-call (car body-res))
+                             (not (eq :not-appear (car rest-bind-res)))
+                             (erfi:any1 (lambda (x) (not (eq :not-appear (car x))))
+                                        bindings-res))
+                         :not-only-tail-call
+                         (car body-res))))
          (when let-name-hidden
            (lwarn 'erfi-macros :warning "`%s' should not hide variable %s used for `erfi:let'" (car b) name))
          `(,judge ,(erfi:let:build c-let-name
