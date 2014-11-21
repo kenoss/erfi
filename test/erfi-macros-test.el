@@ -383,6 +383,13 @@
               (car (erfi:let:code-walk-1 'f
                                          '(funcall g 1)
                                          t dummy-func-alist))))
+  (should (eq :not-only-tail-call
+              (car (erfi:let:code-walk-1 'f
+                                         '(funcall (if (< 0 x)
+                                                       f
+                                                       'identity)
+                                                   (* -2 x))
+                                         t dummy-func-alist))))
   )
 (ert-deftest erfi-test:let:code-walk:apply-2 ()
   (should (eq :only-tail-call
