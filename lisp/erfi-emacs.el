@@ -74,5 +74,32 @@ cdr of that list must be a plist and it designates options.  Keywords are
                         (list (plist-get option-plist :local)))))))
 
 
+
+;;;
+;;; Highlight line until next command
+;;;
+
+(eval-when-compile (require 'hl-line))
+
+(defvar *erfi-emacs-hl-buffers* nil)
+
+(defun erfi-emacs-hl-turn-on-until-next-command ()
+  "Turn on `hl-line-mode' until next command."
+  (progn
+    (add-hook 'pre-command-hook 'erfi-emacs-hl-turn-off/pre-command-hook)
+    (unless hl-line-mode
+      (push (current-buffer) *erfi-emacs-hl-buffers*))
+    (hl-line-mode +1)))
+
+(defun erfi-emacs-hl-turn-off/pre-command-hook ()
+  (unwind-protect
+      (while *erfi-emacs-hl-buffers*
+        (let1 buf (pop *erfi-emacs-hl-buffers*)
+          (when (buffer-live-p buf)
+            (with-current-buffer buf
+              (hl-line-mode -1)))))
+    (remove-hook 'pre-command-hook 'erfi-emacs-hl-turn-off/pre-command-hook)))
+
+
 (provide 'erfi-emamcs)
 ;;; erfi-eamcs.el ends here
