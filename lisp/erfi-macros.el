@@ -310,7 +310,7 @@ Example:
      (push `(t ,(if (eq 'case case-or-ecase)
                     '(erfi:undefined)
                     `(error "ERROR: ecase test fell through: got %s, expecting one of %s"
-                            ,var ,(apply 'append (nreverse kss)))))
+                            ,var ',(apply 'append (nreverse kss)))))
             cs)
     `(let ((,var ,key))
        (cond ,@(nreverse cs)))))
