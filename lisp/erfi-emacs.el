@@ -101,5 +101,5 @@ cdr of that list must be a plist and it designates options.  Keywords are
     (remove-hook 'pre-command-hook 'erfi-emacs-hl-turn-off/pre-command-hook)))
 
 
-(provide 'erfi-emamcs)
-;;; erfi-eamcs.el ends here
+(provide 'erfi-emacs)
+;;; erfi-emacs.el ends here
